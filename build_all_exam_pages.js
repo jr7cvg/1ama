@@ -21,6 +21,16 @@ const TERMS = [
   ["R3.4", "2021", "R03", "04", "令和3年4月期"],
 ];
 
+const MANUAL_EXPLANATIONS = {
+  "HZ604:A-4": [
+    "変成器によるインピーダンス変換と最大電力供給の問題です。",
+    "理想変成器では、二次側の負荷抵抗 RL を一次側から見ると Rab = (N1 / N2)^2 RL になります。抵抗は巻数比の2乗で変換されるため、A は (N1 / N2)^2 RL です。",
+    "交流電源の内部抵抗を RG とすると、負荷側へ最大電力を送る条件は、電源側から見た負荷抵抗が内部抵抗と等しい Rab = RG になることです。したがって B は RG です。",
+    "このとき回路は RG と Rab=RG の直列になるので、負荷側へ加わる電圧は V/2、負荷で消費される最大電力は Pm = (V/2)^2 / RG = V^2 / (4RG) です。よって C は V^2/(4RG) です。",
+    "A=(N1/N2)^2RL、B=RG、C=V^2/(4RG) の組合せなので、正解は3です。"
+  ].join("\n")
+};
+
 function examsFor(subject) {
   const prefix = subject === "houki" ? "HY" : "HZ";
   return TERMS.map(([id, year, reiwa, month, title]) => ({
@@ -275,7 +285,121 @@ function correctChoiceText(text, answer) {
   return trimSentence(line.replace(pattern, "$1"), 120);
 }
 
+function kougakuCalculationExplanation(question, sourceText) {
+  const text = sourceText.replace(/\s+/g, " ");
+  const answerText = question.kind === "A"
+    ? `正答表では${question.id}の正解は${question.answer}です。`
+    : `正答表では${question.id}の正解は${question.labels.map((label, index) => `${label}=${question.answers[index]}`).join("、")}です。`;
+  const topic = problemTopic(sourceText);
+  const lines = [];
+  function finish(items) {
+    return [`この問題は「${topic}」を計算で確認する問題です。`, answerText, ...items].join("\n");
+  }
+
+  if (/変成器|巻数|インピ-ダンス整合|インピーダンス整合/.test(text)) {
+    return finish([
+      "理想変成器では、二次側の負荷抵抗を一次側から見ると、抵抗は巻数比の2乗で変換されます。基本式は Rab = (N1 / N2)^2 RL です。",
+      "最大電力を送る条件は、電源の内部抵抗と負荷側を見た抵抗が等しいこと、つまり Rab = RG です。",
+      "そのとき負荷側にかかる電圧は電源電圧の半分になり、最大電力は Pm = (V/2)^2 / RG = V^2 / (4RG) になります。"
+    ]);
+  }
+
+  if (/コンデンサ|静電容量|誘電体|直列|並列/.test(text)) {
+    return finish([
+      "コンデンサでは Q = CV、したがって V = Q/C を使います。直列接続では各コンデンサの電荷 Q が同じになり、電圧は容量 C に反比例します。",
+      "耐電圧を考える問題では、容量が小さいコンデンサほど大きい電圧を受ける点が重要です。最も厳しいコンデンサが耐電圧に達する条件から全体の最大電圧を求めます。",
+      "誘電体を含む平行板コンデンサは C = εS/d を基本に、層が直列になる場合は各層の電圧分担、並列になる場合は容量の和で整理します。"
+    ]);
+  }
+
+  if (/共振|RLC|リアクタンス|尖鋭度|Q|同調|コイル|インダクタンス/.test(text)) {
+    return finish([
+      "共振回路では XL = 2πfL、XC = 1/(2πfC) を使い、共振条件は XL = XC です。",
+      "共振周波数は f0 = 1/(2π√LC) で、直列共振ではインピーダンスが最小、並列共振ではインピーダンスが最大になります。",
+      "尖鋭度 Q は、回路の抵抗成分に対してリアクタンス成分がどれだけ大きいかを表す量です。問題が直列か並列かを確認して、対応する式に代入します。"
+    ]);
+  }
+
+  if (/SWR|定在波比|反射波|進行波|反射係数/.test(text)) {
+    return finish([
+      "SWRから反射係数を求める式は |Γ| = (SWR - 1) / (SWR + 1) です。",
+      "反射波電力は Pr = |Γ|^2 Pf で求めます。ここで Pf は進行波電力です。",
+      "リターンロスは 10log10(Pf/Pr) = -20log10|Γ| です。SWR、反射係数、進行波/反射波電力の順に変換すると整理しやすくなります。"
+    ]);
+  }
+
+  if (/dB|デシベル|減衰|利得|リタ-ンロス|リターンロス/.test(text)) {
+    return finish([
+      "デシベル計算では、電力比は 10log10(P2/P1)、電圧・電界・電流の比は 20log10(V2/V1) を使います。",
+      "減衰量が L[dB] のとき、電力比は 10^(L/10)、電圧比は 10^(L/20) です。増幅なら掛け算、減衰なら割り算として扱います。",
+      "アンテナ利得や減衰器が複数ある場合は、dB表示では足し算・引き算で合成できます。最後に必要なら真数に戻します。"
+    ]);
+  }
+
+  if (/AM|A3E|変調度|平均電力|搬送波/.test(text)) {
+    return finish([
+      "AM波の平均電力は、搬送波電力を Pc、変調度を m とすると P = Pc(1 + m^2/2) です。",
+      "変調度がパーセントで与えられているときは、80%なら m=0.8 のように小数へ直して代入します。",
+      "平均電力から変調度を求める場合は、P/Pc = 1 + m^2/2 から m を逆算します。"
+    ]);
+  }
+
+  if (/PLL|周波数シンセサイザ|発振器|出力周波数/.test(text)) {
+    return finish([
+      "PLL周波数シンセサイザでは、分周後の周波数が基準周波数と一致するように制御されます。",
+      "基本は 出力周波数 = 基準周波数 × 分周比 です。途中に逓倍・分周がある場合は、その倍率を順に掛けるか割るかして整理します。",
+      "ブロック図の信号の流れに沿って、比較器に入る2つの周波数が等しくなる条件を立てるのがポイントです。"
+    ]);
+  }
+
+  if (/見通し距離|地上高|アンテナの高さ|VHF|UHF/.test(text)) {
+    return finish([
+      "VHF/UHFの見通し距離は、標準大気中では d[km] ≒ 4.12(√h1 + √h2) を使います。h1、h2 は送受信アンテナ高[m]です。",
+      "片方の高さを求める場合は、d/4.12 から既知側の √h を引き、残りを2乗します。",
+      "単位は km と m の組合せで使う公式なので、問題文の単位をそのまま代入できるか確認します。"
+    ]);
+  }
+
+  if (/導波管|遮断周波数|TE/.test(text)) {
+    return finish([
+      "方形導波管のTE10波の遮断周波数は fc = c/(2a) です。c は光速 3.0×10^8[m/s]、a は長辺の長さです。",
+      "a を求めるときは a = c/(2fc) と変形します。GHzは10^9Hz、cmは10^-2mに直して計算します。",
+      "遮断周波数より高い周波数で伝搬できるため、まずTE10の基本式で長辺寸法を求めます。"
+    ]);
+  }
+
+  if (/ビットレ-ト|ビットレート|標本化|量子化/.test(text)) {
+    return finish([
+      "デジタル信号のビットレートは、標本化周波数 × 1標本あたりのビット数で求めます。",
+      "誤り訂正符号などの付加ビットがある場合は、量子化ビット数に付加ビット数を足してから掛けます。",
+      "kHz と bit の積は kbit/s になります。必要なら最後に Mbit/s へ換算します。"
+    ]);
+  }
+
+  if (/電界強度|半波長ダイポ-ル|受信機の入力端子|実効長/.test(text)) {
+    return finish([
+      "受信アンテナの端子電圧は、電界強度とアンテナの実効長から求めます。半波長ダイポールでは実効長を波長に比例する量として扱います。",
+      "まず周波数から波長 λ = c/f を求め、実効長を使って誘起電圧を計算します。",
+      "問題が受信機入力電圧を与えて電界強度を問う形なら、この関係を逆に使います。mV、μV、m の単位換算に注意します。"
+    ]);
+  }
+
+  if (/整流|実効値|無負荷電圧|電源電圧/.test(text)) {
+    return finish([
+      "整流回路では、交流の実効値と最大値の関係 Vmax = √2 Vrms を使います。",
+      "コンデンサ入力形平滑回路の無負荷電圧は、おおむね整流後のピーク値になります。全波整流や倍電圧整流では、回路構成に応じてピーク値が何個分になるかを確認します。",
+      "求める値が実効値かピーク値かを取り違えないことがポイントです。"
+    ]);
+  }
+
+  return null;
+}
+
 function explanation(subject, question, sourceText = "") {
+  const manual = MANUAL_EXPLANATIONS[`${question.examCode}:${question.id}`];
+  if (manual) return manual;
+  const calc = subject === "kougaku" ? kougakuCalculationExplanation(question, sourceText) : null;
+  if (calc) return calc;
   const topic = problemTopic(sourceText);
   const rules = citedRules(topic || sourceText);
   const ruleText = rules.length ? `根拠として問題文に示されているのは、${rules.join("、")}です。` : "";
@@ -298,7 +422,7 @@ function questionsFor(exam, answers, images, texts) {
   const questions = [];
   answers.a.forEach((answer, index) => {
     const id = `A-${index + 1}`;
-    const question = { id, kind: "A", answer, acceptAll: answer === "*", options: [1, 2, 3, 4, 5], blockImage: images[id] };
+    const question = { id, examCode: exam.code, kind: "A", answer, acceptAll: answer === "*", options: [1, 2, 3, 4, 5], blockImage: images[id] };
     question.explanation = explanation(exam.subject, question, texts[id]);
     questions.push(question);
   });
@@ -306,6 +430,7 @@ function questionsFor(exam, answers, images, texts) {
     const id = `B-${index + 1}`;
     const question = {
       id,
+      examCode: exam.code,
       kind: "B",
       answers: answerSet,
       options: Math.max(...answerSet) <= 2 ? [1, 2] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
