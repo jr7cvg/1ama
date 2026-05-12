@@ -5,6 +5,10 @@ const { execFileSync } = require("child_process");
 const ROOT = __dirname;
 const KAKOMON = path.join(ROOT, "Kakomon");
 const TMP = path.join(ROOT, ".tmp_exam_blocks");
+const ALLOW_MISSING_EXPLANATIONS = process.env.ALLOW_MISSING_EXPLANATIONS === "1";
+const EXPLANATION_GAPS = [];
+const EXTRA_EXPLANATIONS_PATH = path.join(ROOT, "manual_explanations.json");
+const EXTRA_EXPLANATIONS_JS_PATH = path.join(ROOT, "manual_explanations.js");
 const TERMS = [
   ["R7.5", "2025", "R07", "05", "令和7年5月期"],
   ["R6.12", "2024", "R06", "12", "令和6年12月期"],
@@ -21,14 +25,1383 @@ const TERMS = [
   ["R3.4", "2021", "R03", "04", "令和3年4月期"],
 ];
 
+const BUILTIN_MANUAL_EXPLANATIONS = {
+  "HZ604:A-4": `
+この問題は、理想変成器で負荷抵抗が一次側からどう見えるか、さらに最大電力条件を使えるかを問う問題です。
+
+まず、理想変成器では電圧比は巻数比に等しくなります。
+
+V1 / V2 = N1 / N2
+
+また、電流比は逆になります。
+
+I1 / I2 = N2 / N1
+
+抵抗は R = V / I なので、二次側の負荷抵抗 RL を一次側から見た抵抗 Rab は、
+
+Rab = V1 / I1
+    = (N1 / N2)^2 RL
+
+となります。
+
+したがって、A は (N1 / N2)^2 RL です。
+
+次に、電源の内部抵抗を RG としたとき、負荷に最大電力を供給する条件は、負荷側を見た抵抗が電源の内部抵抗と等しくなることです。
+
+Rab = RG
+
+したがって、B は RG です。
+
+この条件では、内部抵抗 RG と負荷側抵抗 Rab が等しいため、電源電圧 V は半分ずつ分圧されます。
+
+負荷側にかかる電圧は V/2 です。
+
+よって最大電力 Pm は、
+
+Pm = (V/2)^2 / RG
+   = V^2 / (4RG)
+
+したがって、C は V^2/(4RG) です。
+
+A = (N1/N2)^2 RL
+B = RG
+C = V^2/(4RG)
+
+この組合せは 3 なので、正解は 3 です。
+`.trim(),
+  "HZ705:A-2": `
+この問題は、直列接続したコンデンサに加えられる最大電圧を求める問題です。
+
+直列接続のコンデンサでは、すべてのコンデンサに同じ電荷 Q が蓄えられます。
+
+Q = C V
+
+したがって、同じ Q で比べると、容量 C が小さいコンデンサほど電圧 V が大きくなります。
+
+今回の静電容量は、
+
+8 μF、10 μF、16 μF
+
+です。
+
+いちばん容量が小さい 8 μF のコンデンサが、最初に耐電圧 40 V に達します。
+
+このときの電荷 Q は、
+
+Q = 8 μF × 40 V
+  = 320 μC
+
+です。
+
+この同じ電荷 320 μC が、10 μF と 16 μF のコンデンサにも蓄えられます。
+
+10 μF にかかる電圧は、
+
+V = Q / C
+  = 320 μC / 10 μF
+  = 32 V
+
+16 μF にかかる電圧は、
+
+V = 320 μC / 16 μF
+  = 20 V
+
+よって、直列全体に加えられる最大電圧は、
+
+40 V + 32 V + 20 V = 92 V
+
+となります。
+
+したがって、正解は 4 です。
+`.trim(),
+  "HZ705:A-5": `
+この問題は、電源に重畳した 10 MHz の雑音を、コイルのリアクタンスでどれだけ落とせるかを求める問題です。
+
+負荷抵抗は 100 Ω です。
+
+コイルを直列に入れると、10 MHz の雑音に対してコイルはリアクタンス XL を持ちます。
+
+XL = 2πfL
+
+負荷側の雑音電圧は、抵抗 R とコイルのリアクタンス XL による分圧で決まります。
+
+電圧の減衰量が 34 dB なので、電圧比は、
+
+20 log10(Vin / Vout) = 34
+
+Vin / Vout = 10^(34/20)
+           ≒ 50
+
+つまり、負荷に出る雑音電圧を約 1/50 にすればよいことになります。
+
+R = 100 Ω に対して、直列リアクタンス XL が十分大きいとき、
+
+Vin / Vout ≒ XL / R
+
+と見なせます。
+
+したがって、
+
+XL ≒ 50 × 100 Ω
+   = 5000 Ω
+
+です。
+
+周波数は 10 MHz なので、
+
+L = XL / (2πf)
+  = 5000 / (2π × 10×10^6)
+  ≒ 8.0×10^-5 H
+  = 80 μH
+
+最も近い値を選ぶので、正解は 2 です。
+`.trim(),
+  "HZ705:A-12": `
+この問題は、AM(A3E)波の平均電力を、搬送波電力と変調度から求める問題です。
+
+AM波の平均電力 P は、搬送波電力を Pc、変調度を m とすると、
+
+P = Pc (1 + m^2 / 2)
+
+で求めます。
+
+問題では、変調をかけないときの送信電力、つまり搬送波電力が、
+
+Pc = 750 W
+
+です。
+
+変調度は 80 % なので、小数に直して、
+
+m = 0.8
+
+です。
+
+式に代入します。
+
+P = 750 × (1 + 0.8^2 / 2)
+  = 750 × (1 + 0.64 / 2)
+  = 750 × (1 + 0.32)
+  = 750 × 1.32
+  = 990 W
+
+したがって、送信電力は約 990 W です。
+
+正解は 3 です。
+`.trim(),
+  "HZ705:A-25": `
+この問題は、進行波電力と反射波電力から、SWR とリターンロスを求める問題です。
+
+進行波電力は、
+
+Pf = 1000 W
+
+反射波電力は、
+
+Pr = 40 W
+
+です。
+
+まず、反射係数の大きさ |Γ| を求めます。
+
+Pr / Pf = |Γ|^2
+
+なので、
+
+|Γ| = √(Pr / Pf)
+    = √(40 / 1000)
+    = √0.04
+    = 0.2
+
+次に、SWR は、
+
+SWR = (1 + |Γ|) / (1 - |Γ|)
+
+です。
+
+SWR = (1 + 0.2) / (1 - 0.2)
+    = 1.2 / 0.8
+    = 1.5
+
+次に、リターンロスを求めます。
+
+リターンロス = 10 log10(Pf / Pr)
+
+Pf / Pr = 1000 / 40 = 25
+
+10 log10 25 は約 14 dB です。
+
+したがって、
+
+SWR = 1.5
+リターンロス ≒ 14 dB
+
+この組合せなので、正解は 4 です。
+`.trim(),
+  "HZ608:A-6": `
+この問題は、位相差を時間差に換算する問題です。
+
+周波数は、
+
+f = 10 MHz
+
+です。
+
+周期 T は周波数の逆数なので、
+
+T = 1 / f
+  = 1 / (10×10^6)
+  = 0.1 μs
+  = 100 ns
+
+です。
+
+位相差は 3π/4 rad です。
+
+1周期は 2π rad なので、3π/4 rad は何周期分かを求めると、
+
+(3π/4) / (2π)
+  = 3/8
+
+です。
+
+したがって時間差は、
+
+100 ns × 3/8
+  = 37.5 ns
+
+となります。
+
+最も近い値を選ぶので、正解は 5 です。
+`.trim(),
+  "HZ608:A-24": `
+この問題は、減衰器を通した後の電力から、元の送信機出力を求める問題です。
+
+減衰器の減衰量は 17 dB です。
+
+電力比の dB は、
+
+L = 10 log10(Pin / Pout)
+
+で表します。
+
+したがって、
+
+Pin / Pout = 10^(L/10)
+
+です。
+
+L = 17 dB なので、
+
+Pin / Pout = 10^(17/10)
+           = 10^1.7
+           ≒ 50
+
+電力計の指示値は、減衰器を通過した後の電力なので、
+
+Pout = 50 mW
+
+です。
+
+したがって送信機の出力電力は、
+
+Pin ≒ 50 mW × 50
+    = 2500 mW
+    = 2.5 W
+
+最も近い値を選ぶので、正解は 3 です。
+`.trim(),
+  "HZ309:A-10": `
+この問題は、標本化したデジタル信号のビットレートを求める問題です。
+
+標本化周波数は、
+
+24 kHz
+
+です。
+
+これは 1 秒間に 24,000 個の標本を送るという意味です。
+
+各標本は 16 ビットで量子化されます。
+
+さらに、誤り訂正符号を 2 ビット付加するので、1標本あたりのビット数は、
+
+16 + 2 = 18 ビット
+
+です。
+
+したがって、ビットレートは、
+
+24,000 × 18
+  = 432,000 bit/s
+
+となります。
+
+432,000 bit/s は、
+
+432 kbit/s
+
+です。
+
+したがって、正解は 5 です。
+`.trim(),
+  "HZ512:A-19": `
+この問題は、AM(A3E)送信機の搬送波電力から、100%変調時の同軸ケーブル電圧の最大値を求める問題です。
+
+まず、無変調時の送信電力は搬送波電力です。
+
+Pc = 800 W
+
+同軸ケーブルの特性インピーダンスは 50 Ω で、両端は整合しているので、搬送波の実効値電圧 Vc は、
+
+Pc = Vc^2 / R
+
+から求められます。
+
+Vc = √(Pc R)
+   = √(800 × 50)
+   = √40000
+   = 200 V
+
+これは実効値です。
+
+正弦波の最大値は実効値の √2 倍なので、搬送波電圧の最大値は、
+
+200√2 V
+
+です。
+
+AMで変調度 100% のとき、包絡線の最大値は搬送波振幅の 2 倍になります。
+
+したがって、同軸ケーブルに加わる電圧の最大値は、
+
+2 × 200√2
+  = 400√2 V
+
+です。
+
+よって、正解は 3 です。
+`.trim(),
+  "HZ512:A-25": `
+この問題は、VSWR から反射波電力とリターンロスを求める問題です。
+
+進行波電力は、
+
+Pf = 100 W
+
+VSWR は、
+
+S = 3.0
+
+です。
+
+まず、VSWR から電圧反射係数 |Γ| を求めます。
+
+|Γ| = (S - 1) / (S + 1)
+    = (3 - 1) / (3 + 1)
+    = 2 / 4
+    = 0.5
+
+反射波電力は、進行波電力に |Γ|^2 を掛けます。
+
+Pr = |Γ|^2 Pf
+   = 0.5^2 × 100
+   = 0.25 × 100
+   = 25 W
+
+次にリターンロスを求めます。
+
+リターンロス = 10 log10(Pf / Pr)
+
+Pf / Pr = 100 / 25 = 4
+
+log10 2 ≒ 0.3 なので、
+
+log10 4 = log10(2^2)
+        = 2 log10 2
+        ≒ 0.6
+
+したがって、
+
+10 log10 4 ≒ 6 dB
+
+反射波電力 25 W、リターンロス 6 dB の組合せなので、正解は 2 です。
+`.trim(),
+  "HZ508:A-13": `
+この問題は、AM(A3E)波の平均電力と変調度から、無変調時の搬送波電力を逆算する問題です。
+
+AM波の平均電力 P は、搬送波電力を Pc、変調度を m とすると、
+
+P = Pc(1 + m^2 / 2)
+
+です。
+
+問題では、被変調波の平均電力が、
+
+P = 450 W
+
+変調度が、
+
+m = 0.8
+
+です。
+
+式を Pc について解くと、
+
+Pc = P / (1 + m^2 / 2)
+
+です。
+
+代入します。
+
+Pc = 450 / (1 + 0.8^2 / 2)
+   = 450 / (1 + 0.64 / 2)
+   = 450 / 1.32
+   ≒ 341 W
+
+選択肢では 340 W が最も近い値です。
+
+したがって、正解は 2 です。
+`.trim(),
+  "HZ508:A-20": `
+この問題は、負荷抵抗 75 Ω を 50 Ω の無損失給電線につないだときの、反射係数、VSWR、リターンロスを求める問題です。
+
+給電線の特性インピーダンスは、
+
+Z0 = 50 Ω
+
+負荷抵抗は、
+
+RL = 75 Ω
+
+です。
+
+負荷が純抵抗のとき、電圧反射係数 Γ は、
+
+Γ = (RL - Z0) / (RL + Z0)
+
+で求めます。
+
+Γ = (75 - 50) / (75 + 50)
+  = 25 / 125
+  = 0.2
+
+次に VSWR は、
+
+S = (1 + |Γ|) / (1 - |Γ|)
+
+です。
+
+S = (1 + 0.2) / (1 - 0.2)
+  = 1.2 / 0.8
+  = 1.5
+
+リターンロスは、
+
+リターンロス = -20 log10 |Γ|
+
+です。
+
+|Γ| = 0.2 = 1/5 なので、
+
+-20 log10(0.2)
+= 20 log10 5
+
+5 = 10 / 2 ですから、
+
+log10 5 = 1 - log10 2
+        ≒ 1 - 0.3
+        = 0.7
+
+よって、
+
+20 × 0.7 = 14 dB
+
+です。
+
+電圧反射係数 0.2、VSWR 1.5、リターンロス 14 dB の組合せなので、正解は 3 です。
+`.trim(),
+  "HZ504:A-10": `
+この問題は、PCM方式のビットレートを求める問題です。
+
+ビットレートは、
+
+標本化周波数 × 1標本あたりのビット数
+
+で求めます。
+
+標本化周波数は、
+
+32 kHz
+
+です。
+
+つまり、1秒間に 32,000 個の標本を送ります。
+
+各標本は 12 ビットで量子化され、さらに誤り訂正符号を 2 ビット付加します。
+
+したがって、1標本あたりのビット数は、
+
+12 + 2 = 14 ビット
+
+です。
+
+よって、ビットレートは、
+
+32,000 × 14
+  = 448,000 bit/s
+
+です。
+
+これは、
+
+448 kbps
+
+に相当します。
+
+したがって、正解は 5 です。
+`.trim(),
+  "HZ504:A-19": `
+この問題は、複素数で与えられた電圧反射係数から VSWR を求める問題です。
+
+電圧反射係数は、
+
+Γ = 0.224 + j0.2
+
+です。
+
+VSWR に使うのは、複素数そのものではなく大きさ |Γ| です。
+
+|Γ| = √(0.224^2 + 0.2^2)
+
+0.224^2 は約 0.050、0.2^2 は 0.040 なので、
+
+|Γ| ≒ √0.090
+     ≒ 0.30
+
+です。
+
+VSWR は、
+
+S = (1 + |Γ|) / (1 - |Γ|)
+
+で求めます。
+
+S ≒ (1 + 0.30) / (1 - 0.30)
+  = 1.30 / 0.70
+  ≒ 1.86
+
+選択肢では 1.9 が最も近い値です。
+
+したがって、正解は 3 です。
+`.trim(),
+  "HZ504:A-24": `
+この問題は、オシロスコープに表示された二つの正弦波の横方向のずれから、位相差を読む問題です。
+
+同じ周波数の正弦波では、1周期分の横幅が 2π rad に対応します。
+
+したがって、まず図で「1周期が横方向に何目盛か」を見ます。
+
+次に、二つの波形の同じ点、たとえば山と山、または同じ向きにゼロを横切る点どうしのずれを読みます。
+
+図では、二つの波形のずれが 1周期の 5/12 に相当します。
+
+1周期は 2π rad なので、
+
+位相差 = 2π × 5/12
+       = 10π/12
+       = 5π/6 rad
+
+となります。
+
+したがって、正解は 1 です。
+`.trim(),
+  "HZ412:A-9": `
+この問題は、発振回路の共振周波数がコンデンサの容量変化でどう変わるかを求める問題です。
+
+LC発振回路の発振周波数は、
+
+f = 1 / (2π√LC)
+
+です。
+
+L が一定なら、周波数 f は √C に反比例します。
+
+問題では、コンデンサ C が 36% 減少します。
+
+つまり、新しい容量は元の、
+
+100% - 36% = 64%
+
+です。
+
+C' = 0.64 C
+
+なので、新しい周波数 f' は、
+
+f' / f = 1 / √0.64
+       = 1 / 0.8
+       = 1.25
+
+です。
+
+つまり、周波数は元の 1.25 倍、すなわち 25% 増加します。
+
+したがって、正解は 1 です。
+`.trim(),
+  "HZ412:A-11": `
+この問題は、AM(A3E)波の実効値電圧を、搬送波の最大値と変調度から求める問題です。
+
+無変調時の搬送波電圧の振幅値、つまり最大値は、
+
+Vc(max) = 100 V
+
+です。
+
+正弦波の実効値は最大値の 1/√2 なので、搬送波の実効値 Vc は、
+
+Vc = 100 / √2
+   ≒ 70.7 V
+
+です。
+
+AM波の平均電力は、
+
+P = Pc(1 + m^2 / 2)
+
+です。
+
+同じ抵抗負荷で考えると、電力は電圧実効値の2乗に比例します。
+
+したがって、変調波の実効値 V は、
+
+V = Vc √(1 + m^2 / 2)
+
+です。
+
+変調度は 50% なので、
+
+m = 0.5
+
+です。
+
+代入します。
+
+V = 70.7 × √(1 + 0.5^2 / 2)
+  = 70.7 × √(1 + 0.25 / 2)
+  = 70.7 × √1.125
+  ≒ 70.7 × 1.06
+  ≒ 75 V
+
+したがって、正解は 3 です。
+`.trim(),
+  "HZ412:A-25": `
+この問題は、進行波電力と反射波電力から SWR を求める問題です。
+
+進行波電力は、
+
+Pf = 900 W
+
+反射波電力は、
+
+Pr = 144 W
+
+です。
+
+まず反射係数の大きさ |Γ| を求めます。
+
+Pr / Pf = |Γ|^2
+
+なので、
+
+|Γ| = √(Pr / Pf)
+    = √(144 / 900)
+    = 12 / 30
+    = 0.4
+
+次に、SWR は、
+
+S = (1 + |Γ|) / (1 - |Γ|)
+
+です。
+
+S = (1 + 0.4) / (1 - 0.4)
+  = 1.4 / 0.6
+  ≒ 2.33
+
+最も近い値は 2.3 です。
+
+したがって、正解は 1 です。
+`.trim(),
+  "HZ408:A-11": `
+この問題は、電力増幅器の利得と整合器の損失を dB で合成して、出力電力を求める問題です。
+
+入力電力は、
+
+Pin = 35 W
+
+電力増幅器の利得は 15 dB、整合器の損失は 1 dB です。
+
+dB 表示では、利得は足し、損失は引きます。
+
+したがって、全体の利得は、
+
+15 dB - 1 dB = 14 dB
+
+です。
+
+電力比の dB は、
+
+G[dB] = 10 log10(Pout / Pin)
+
+なので、
+
+Pout / Pin = 10^(14/10)
+
+です。
+
+log10 2 ≒ 0.3 なので、
+
+14 dB は電力比で約 25 倍です。
+
+理由は、
+
+10 log10 25
+= 10 log10(100/4)
+= 10(2 - log10 4)
+= 10(2 - 0.6)
+= 14 dB
+
+となるためです。
+
+したがって、
+
+Pout ≒ 35 W × 25
+     = 875 W
+
+です。
+
+よって、正解は 2 です。
+`.trim(),
+  "HZ408:A-24": `
+この問題は、3点法で接地抵抗を求める問題です。
+
+端子①に接続された接地板の接地抵抗を R1、端子②の補助接地棒を R2、端子③の補助接地棒を R3 とします。
+
+問題で与えられている測定値は、
+
+①-②間: R1 + R2 = 70 Ω
+①-③間: R1 + R3 = 50 Ω
+②-③間: R2 + R3 = 90 Ω
+
+です。
+
+求めたいのは R1 です。
+
+上の3式のうち、最初の2式を足します。
+
+(R1 + R2) + (R1 + R3)
+= 70 + 50
+
+左辺は、
+
+2R1 + R2 + R3
+
+です。
+
+ここから、R2 + R3 = 90 Ω を引くと、
+
+2R1 = 70 + 50 - 90
+    = 30
+
+したがって、
+
+R1 = 15 Ω
+
+です。
+
+よって、正解は 1 です。
+`.trim(),
+  "HZ404:A-8": `
+この問題は、FET 増幅回路の電圧増幅度を、相互コンダクタンスと負荷抵抗から求める問題です。
+
+図の等価回路では、ドレイン側にドレイン抵抗 rd と負荷抵抗 RL が並列に接続されています。
+
+したがって、出力側の合成抵抗 R は、
+
+R = rd || RL
+
+です。
+
+数値は、
+
+rd = 15 kΩ
+RL = 5 kΩ
+
+なので、
+
+R = (15 kΩ × 5 kΩ) / (15 kΩ + 5 kΩ)
+  = 75 / 20 kΩ
+  = 3.75 kΩ
+
+です。
+
+FET の小信号電流は、
+
+id = gm Vgs
+
+で表されます。
+
+この電流が出力側の合成抵抗 R に流れるので、出力電圧の大きさは、
+
+Vds = gm Vgs R
+
+となります。
+
+したがって、電圧増幅度の大きさは、
+
+|Vds / Vgs| = gm R
+
+です。
+
+相互コンダクタンスは、
+
+gm = 8 mS = 0.008 S
+
+なので、
+
+|Vds / Vgs| = 0.008 × 3750
+             = 30
+
+です。
+
+したがって、正解は 2 です。
+`.trim(),
+  "HZ404:A-17": `
+この問題は、ブリッジ整流回路で、各ダイオードに加わる逆方向最大電圧を求める問題です。
+
+交流入力の実効値は、
+
+Vrms = 200 V
+
+です。
+
+正弦波の最大値 Vm は、実効値の √2 倍なので、
+
+Vm = √2 Vrms
+   = 200√2
+   ≒ 283 V
+
+です。
+
+コンデンサ入力形の無負荷状態では、コンデンサはおおむね入力電圧のピーク値まで充電されます。
+
+ブリッジ整流回路では、導通していないダイオードに加わる逆方向電圧の最大値は、基本的にこのピーク値 Vm です。
+
+センタータップ式全波整流のように 2Vm にはなりません。
+
+したがって、各ダイオードに加わる逆方向最大電圧は、
+
+約 283 V
+
+です。
+
+よって、正解は 1 です。
+`.trim(),
+  "HZ404:A-19": `
+この問題は、アンテナ電流、入力抵抗、放射抵抗から、放射電力と放射効率を求める問題です。
+
+アンテナ電流は、
+
+I = 3 A
+
+放射抵抗は、
+
+Rr = 36 Ω
+
+です。
+
+放射電力 Pr は、放射抵抗で消費される電力として、
+
+Pr = I^2 Rr
+
+で求めます。
+
+Pr = 3^2 × 36
+   = 9 × 36
+   = 324 W
+
+です。
+
+次に、放射効率を求めます。
+
+入力抵抗は、
+
+Rin = 50 Ω
+
+です。
+
+整合回路の損失がない条件なので、アンテナに入った電力のうち、放射抵抗に相当する分が放射されます。
+
+放射効率 η は、
+
+η = Rr / Rin
+  = 36 / 50
+  = 0.72
+
+です。
+
+百分率では、
+
+72%
+
+です。
+
+したがって、放射電力 324 W、放射効率 72% の組合せになり、正解は 2 です。
+`.trim(),
+  "HZ404:A-24": `
+この問題は、減衰器を通して測った電力から、送信機の元の出力電力を求める問題です。
+
+減衰器の減衰量は、
+
+27 dB
+
+です。
+
+電力比の dB は、
+
+L = 10 log10(Pin / Pout)
+
+で表します。
+
+したがって、
+
+Pin / Pout = 10^(L/10)
+
+です。
+
+L = 27 dB なので、
+
+Pin / Pout = 10^(27/10)
+           = 10^2.7
+
+ここで、log10 2 ≒ 0.3 なので、
+
+10^0.7 = 10^(1 - 0.3)
+       = 10 / 2
+       = 5
+
+です。
+
+したがって、
+
+10^2.7 = 10^2 × 10^0.7
+       = 100 × 5
+       = 500
+
+となります。
+
+電力計の指示値は、減衰器を通過した後の電力です。
+
+Pout = 10 mW
+
+なので、送信機出力 Pin は、
+
+Pin = 10 mW × 500
+    = 5000 mW
+    = 5 W
+
+です。
+
+したがって、正解は 1 です。
+`.trim(),
+  "HZ304:A-24": `
+この問題は、SWR と進行波電力から反射波電力を求める問題です。
+
+進行波電力は、
+
+Pf = 900 W
+
+SWR は、
+
+S = 2.0
+
+です。
+
+まず、SWR から反射係数 |Γ| を求めます。
+
+|Γ| = (S - 1) / (S + 1)
+    = (2 - 1) / (2 + 1)
+    = 1 / 3
+
+反射波電力は、
+
+Pr = |Γ|^2 Pf
+
+で求めます。
+
+Pr = (1/3)^2 × 900
+   = 1/9 × 900
+   = 100 W
+
+したがって、正解は 1 です。
+`.trim(),
+  "HZ312:A-12": `
+この問題は、AM(A3E)波の平均電力から変調度を逆算する問題です。
+
+AM波の平均電力 P は、搬送波電力を Pc、変調度を m とすると、
+
+P = Pc(1 + m^2 / 2)
+
+です。
+
+問題では、
+
+Pc = 200 W
+P = 280 W
+
+です。
+
+まず比を取ります。
+
+P / Pc = 280 / 200
+       = 1.4
+
+したがって、
+
+1 + m^2 / 2 = 1.4
+
+です。
+
+両辺から 1 を引くと、
+
+m^2 / 2 = 0.4
+
+です。
+
+両辺を 2 倍して、
+
+m^2 = 0.8
+
+となります。
+
+m = √0.8
+  ≒ 0.894
+
+です。
+
+百分率では約 89.4% なので、最も近い値は 90% です。
+
+したがって、正解は 4 です。
+`.trim(),
+  "HZ312:A-20": `
+この問題は、同じ距離で電界強度が等しくなる条件から、八木アンテナの相対利得を求める問題です。
+
+同じ距離、同じ方向で比較すると、電界強度は、
+
+√(送信電力 × アンテナ利得)
+
+に比例します。
+
+半波長ダイポールでは、
+
+P1 = 500 W
+G1 = 1
+
+と考えます。
+
+八木アンテナでは、
+
+P2 = 25 W
+G2 = 求める利得
+
+です。
+
+電界強度が等しいので、
+
+P1 G1 = P2 G2
+
+です。
+
+したがって、
+
+500 × 1 = 25 × G2
+
+G2 = 500 / 25
+   = 20
+
+です。
+
+つまり、八木アンテナは半波長ダイポールに対して電力比で 20 倍の利得を持つことになります。
+
+dB に直すと、
+
+10 log10 20
+= 10 log10(2 × 10)
+= 10(log10 2 + 1)
+≒ 10(0.3 + 1)
+= 13 dB
+
+です。
+
+したがって、正解は 3 です。
+`.trim(),
+  "HZ309:A-2": `
+この問題は、環状鉄心の磁束密度から、コイル電流を求める問題です。
+
+環状鉄心では、磁路長をおおよそ円周長として考えます。
+
+磁路長 l は、
+
+l = 2πr
+
+です。
+
+半径は 4 cm なので、
+
+r = 0.04 m
+
+です。
+
+磁界の強さ H は、
+
+H = NI / l
+
+です。
+
+また、磁束密度 B は、
+
+B = μH
+
+で、透磁率 μ は、
+
+μ = μ0 μr
+
+です。
+
+したがって、
+
+B = μ0 μr NI / (2πr)
+
+となります。
+
+これを I について解くと、
+
+I = B・2πr / (μ0 μr N)
+
+です。
+
+数値を代入します。
+
+B = 5 T
+r = 0.04 m
+μ0 = 4π×10^-7 H/m
+μr = 2000
+N = 250
+
+I = 5 × 2π × 0.04 / (4π×10^-7 × 2000 × 250)
+
+分子は、
+
+5 × 0.08π = 0.4π
+
+分母は、
+
+4π×10^-7 × 500000
+= 0.2π
+
+したがって、
+
+I = 0.4π / 0.2π
+  = 2 A
+
+よって、正解は 2 です。
+`.trim(),
+  "HZ309:A-13": `
+この問題は、FM(F3E)通信の占有周波数帯幅をカーソンの法則で求める問題です。
+
+FMの占有周波数帯幅の近似式は、
+
+B ≒ 2(Δf + fs)
+
+です。
+
+ここで、
+
+Δf: 最大周波数偏移
+fs: 変調信号の最高周波数
+
+です。
+
+問題では、
+
+Δf = 3.25 kHz
+fs = 3 kHz
+
+です。
+
+代入します。
+
+B ≒ 2(3.25 + 3)
+  = 2 × 6.25
+  = 12.5 kHz
+
+したがって、正解は 2 です。
+`.trim(),
+  "HZ309:A-20": `
+この問題は、送信アンテナの電力・利得・高さから、受信点の電界強度を求める問題です。
+
+まず、送信アンテナによる直接波の電界強度 E0 を考えます。
+
+半波長ダイポールに対する相対利得は 13 dB です。
+
+13 dB は電力比で、
+
+10^(13/10) ≒ 20
+
+です。
+
+送信電力は 20 W なので、
+
+P × G = 20 × 20 = 400
+
+です。
+
+この条件で距離 20 km の直接波電界強度 E0 は、標準的な式から、
+
+E0 = 7√(PG) / d
+
+で求めます。
+
+d = 20,000 m なので、
+
+E0 = 7√400 / 20000
+   = 7 × 20 / 20000
+   = 0.007 V/m
+
+です。
+
+次に、問題文で与えられた地表反射を含む式を使います。
+
+E = E0 × 4πh1h2 / (λd)
+
+周波数は 150 MHz なので、波長 λ は、
+
+λ = 300 / 150
+  = 2 m
+
+です。
+
+アンテナ高は、
+
+h1 = 20 m
+h2 = 10 m
+
+距離は、
+
+d = 20,000 m
+
+です。
+
+代入すると、
+
+E = 0.007 × 4π × 20 × 10 / (2 × 20000)
+
+4π × 20 × 10 / (2 × 20000)
+= 800π / 40000
+= π / 50
+≒ 0.0628
+
+したがって、
+
+E ≒ 0.007 × 0.0628
+  ≒ 0.00044 V/m
+
+です。
+
+0.00044 V/m は、
+
+440 μV/m
+
+です。
+
+よって、正解は 4 です。
+`.trim(),
+  "HZ304:A-21": `
+この問題は、半波長ダイポールアンテナで受信したときの受信機入力電圧を求める問題です。
+
+周波数は、
+
+f = 7 MHz
+
+です。
+
+波長 λ は、
+
+λ = 300 / f[MHz]
+  = 300 / 7
+  ≒ 42.9 m
+
+です。
+
+半波長ダイポールの実効長は、おおよそ、
+
+he = λ / π
+
+で扱います。
+
+したがって、
+
+he ≒ 42.9 / π
+   ≒ 13.6 m
+
+です。
+
+電界強度は、
+
+E = 30 mV/m
+  = 0.03 V/m
+
+です。
+
+アンテナの誘起電圧 V0 は、
+
+V0 = E he
+   = 0.03 × 13.6
+   ≒ 0.408 V
+
+です。
+
+図では、アンテナの入力抵抗 r と受信機の入力抵抗 R が整合している条件です。
+
+整合していると、電圧は r と R で半分ずつ分かれるため、受信機入力端子 a-b 間の電圧は、
+
+Vab = V0 / 2
+    ≒ 0.408 / 2
+    ≒ 0.204 V
+
+です。
+
+0.204 V は、
+
+204 mV
+
+なので、最も近い値は 200 mV です。
+
+したがって、正解は 5 です。
+`.trim()
+};
+
+const EXTRA_MANUAL_EXPLANATIONS = fs.existsSync(EXTRA_EXPLANATIONS_PATH)
+  ? JSON.parse(fs.readFileSync(EXTRA_EXPLANATIONS_PATH, "utf8"))
+  : {};
+const EXTRA_MANUAL_EXPLANATIONS_JS = fs.existsSync(EXTRA_EXPLANATIONS_JS_PATH)
+  ? require(EXTRA_EXPLANATIONS_JS_PATH)
+  : {};
 const MANUAL_EXPLANATIONS = {
-  "HZ604:A-4": [
-    "変成器によるインピーダンス変換と最大電力供給の問題です。",
-    "理想変成器では、二次側の負荷抵抗 RL を一次側から見ると Rab = (N1 / N2)^2 RL になります。抵抗は巻数比の2乗で変換されるため、A は (N1 / N2)^2 RL です。",
-    "交流電源の内部抵抗を RG とすると、負荷側へ最大電力を送る条件は、電源側から見た負荷抵抗が内部抵抗と等しい Rab = RG になることです。したがって B は RG です。",
-    "このとき回路は RG と Rab=RG の直列になるので、負荷側へ加わる電圧は V/2、負荷で消費される最大電力は Pm = (V/2)^2 / RG = V^2 / (4RG) です。よって C は V^2/(4RG) です。",
-    "A=(N1/N2)^2RL、B=RG、C=V^2/(4RG) の組合せなので、正解は3です。"
-  ].join("\n")
+  ...BUILTIN_MANUAL_EXPLANATIONS,
+  ...EXTRA_MANUAL_EXPLANATIONS,
+  ...EXTRA_MANUAL_EXPLANATIONS_JS,
 };
 
 function examsFor(subject) {
@@ -285,6 +1658,94 @@ function correctChoiceText(text, answer) {
   return trimSentence(line.replace(pattern, "$1"), 120);
 }
 
+function houkiRulePoint(text) {
+  const clean = text.replace(/\s+/g, " ");
+  const rules = [
+    [/アマチュア業務|アマチュア衛星業務/, "アマチュア業務は、金銭上の利益を目的としない自己訓練・通信・技術的研究の業務です。第三者通信、商業利用、暗語の扱いを確認します。"],
+    [/分配されている周波数帯|周波数帯に該当しない/, "周波数分配の問題では、無線通信規則の周波数分配表でアマチュア業務に割り当てられている帯域かどうかを確認します。似た周波数帯でも、アマチュア業務ではない帯域が選択肢に混ぜられます。"],
+    [/目的及び.*定義|電波法の目的|電波の公平且つ能率的な利用/, "電波法の目的は、電波の公平かつ能率的な利用を確保し、公共の福祉を増進することです。定義問題では、電波、無線電信、無線電話、無線設備、無線局などの用語を条文どおりに区別します。"],
+    [/無線局の定義|無線局の限界/, "「無線局」は、無線設備とその操作を行う者を含めた単位として扱います。ただし受信のみを目的とするものなど、法令上の除外に当たるものは無線局に含めません。"],
+    [/開設|免許を受けなければ|免許を要しない|登録局/, "無線局は、原則として免許を受けなければ開設できません。例外に当たる局か、登録局か、免許局かを問題文の条件で切り分けます。"],
+    [/予備免許|工事設計|設置場所の変更|工事落成|変更検査|免許後の変更/, "予備免許後や免許後の変更では、工事設計・設置場所・無線設備の変更が、許可を要する変更なのか、届出で足りる軽微な変更なのか、変更検査が必要なのかを分けて考えます。"],
+    [/落成後の検査|落成検査/, "落成後の検査は、工事落成の届出後に、免許内容どおり無線設備が整っているかを確認する手続です。検査を受ける時点、検査対象、運用開始との関係が問われます。"],
+    [/工事落成の期限|落成した旨の届出/, "予備免許を受けた者が指定期限後2週間以内に工事落成の届出をしない場合、総務大臣は免許を拒否できる扱いになります。期限、延長の有無、届出の有無がポイントです。"],
+    [/廃止|休止|承継|免許状の返納/, "無線局を廃止したときや免許が効力を失ったときは、届出や免許状返納などの手続が問題になります。誰が、いつ、何を総務大臣に行うかを確認します。"],
+    [/電波利用料/, "電波利用料は、免許人等が電波利用共益事務の費用に充てるために納めるものです。納付義務者、金額、納付時期、免除・減免の有無がポイントです。"],
+    [/スプリアス発射|帯域外発射|不要発射/, "不要発射は、必要周波数帯の外側に出る発射全体を扱います。帯域外発射とスプリアス発射は、必要周波数帯からの離れ方や発生原因で区別します。"],
+    [/周波数の許容偏差|占有周波数帯幅|尖\s*頭電力|平均電力|電波の型式|発射電波の占有周波数帯幅/, "電波の型式、周波数の許容偏差、占有周波数帯幅、尖頭電力、平均電力は、いずれも定義語を条文どおりに読む問題です。数値や記号だけでなく、どの信号・どの時間平均・どの帯域を指すかを確認します。"],
+    [/空中線電力の許容偏差/, "空中線電力の許容偏差は、指定または表示された空中線電力から実際の電力がどの範囲までずれてよいかを定めるものです。上限側と下限側、送信設備の種類、アマチュア局に適用される範囲を確認します。"],
+    [/電波の質|受信設備の条件|受信設備/, "電波の質と受信設備の条件では、周波数の偏差・占有周波数帯幅・不要発射の強度、さらに副次的に発する電波や高周波電流が他の設備に妨害を与えないことが問われます。"],
+    [/安全施設|高圧電気|感電|避雷器|接地/, "安全施設では、人体への危険防止、感電防止、接地、避雷、立入制限などが問われます。対象が送信設備なのか、空中線系なのかで要求が変わります。"],
+    [/周波数の安定|送信装置の周波数|送信装置|水晶発振子|変調/, "送信装置は、周波数をできる限り安定に保ち、占有周波数帯幅や許容偏差を逸脱しないようにする必要があります。水晶発振子、発振回路、変調方式、不要発射の抑制を問題文の条件に合わせて確認します。"],
+    [/空中線の指向特性/, "空中線の指向特性は、主に放射方向、ビーム幅、前後比、偏波などで決まります。問題では、指向特性そのものを定める事項か、単なる設備条件かを分けます。"],
+    [/混信|妨害|干渉/, "混信等の防止では、他の無線局の運用を阻害しないことが基本です。必要最小限の電力、周波数の選定、発射停止や変更命令との関係を確認します。"],
+    [/擬似空中線回路/, "擬似空中線回路は、空中線を接続せずに送信設備を試験・調整するための負荷です。試験電波を空中へ発射しない趣旨なので、使用すべき場面と例外を押さえます。"],
+    [/通信の原則|一般通信方法/, "無線通信は、簡潔・明瞭に行い、必要のない通信を避けるのが原則です。内容、通信時間、使用周波数を必要最小限にする趣旨を押さえます。"],
+    [/呼び出|呼出し|応答|通報|反復/, "運用規則の通信手順では、呼出し、応答、通報、反復の順序と、相手局・自局の呼出符号や略符号をどのタイミングで送るかが問われます。"],
+    [/略符号|モ-ルス|モールス|Ｑ符号|Q符号/, "略符号・Q符号・モールスは、意味と符号の対応を正確に覚える分野です。問題文が求める意味と、選択肢の符号が表す意味を一致させます。"],
+    [/電波の発射の停止|発射を停止/, "電波の発射停止は、混信・法令違反・非常時などで総務大臣が必要と認める場合に命じられる監督措置です。命令の主体と対象を確認します。"],
+    [/非常の場合の無線通信|非常通信/, "非常の場合の無線通信は、地震、台風、洪水、津波、雪害、火災、暴動その他非常の事態で、有線通信を利用できないか著しく困難な場合に、人命救助・災害救援・交通通信確保などのために行う通信です。"],
+    [/虚偽の通信|罰則/, "虚偽の通信に対する罰則では、遭難通信・緊急通信・安全通信など重要通信について虚偽の通信を発した場合の重い処罰と、一般の虚偽通信の扱いを区別します。"],
+    [/無線従事者|従事停止|免許の取消/, "無線従事者に対する処分では、法令違反や不正取得などに対し、免許取消しや業務従事停止があり得ます。無線局免許人への処分とは区別します。"],
+    [/技術基準に適合していない|技術基準/, "無線設備が技術基準に適合していないと認められる場合、総務大臣は修理その他必要な措置を命じることができます。免許取消しではなく、まず設備を基準に適合させる監督措置として読むのがポイントです。"],
+    [/制限に関する|第76条|運用の停止|周波数若しくは空中線電力/, "免許人が法令や処分に違反した場合、総務大臣は無線局の運用停止、運用許容時間・周波数・空中線電力の制限、免許取消しなどを行えます。無線従事者個人への処分と混同しないことが重要です。"],
+    [/報告|事故|遭難|非常通信|業務書類/, "報告義務では、無線局の運用や設備に重大な事故・違反・非常通信などがあった場合に、誰が総務大臣へ報告するかが問われます。"],
+    [/通信の秘密|秘密の保護/, "通信の秘密は、内容の漏えい・窃用・不当な利用を禁じる基本原則です。受信した通信を第三者へ漏らすこと、自己や他人の利益のために使うことは許されません。"],
+    [/禁止されている伝送|すべての局に禁止/, "無線通信規則では、不要な伝送、虚偽または紛らわしい信号、識別のない伝送など、すべての局に禁止される伝送があります。禁止事項に該当するものと、該当しないものを分けて読むことが重要です。"],
+    [/違反の通告|有害な混信/, "国際規則の違反通告では、有害な混信や規則違反を認めた主管庁が、関係主管庁へ必要な資料を添えて通告する流れを押さえます。"],
+    [/許可書|局の許可書|免許状/, "局の許可書・免許状は、局の識別、設置場所、周波数、電力など運用条件を示す根拠書類です。備付け、提示、記載事項の扱いが問われます。"],
+    [/社団.*アマチュア局|公益社団法人を除く/, "社団であるアマチュア局の免許人には、定款・役員・構成員など、社団としての実体を維持する義務があります。変更があった場合の届出や、代表者・構成員に関する要件を確認します。"],
+    [/周波数測定装置/, "周波数測定装置は、送信周波数を法令上の許容偏差内に保つための設備です。備付け義務の有無と、例外に当たる条件を確認します。"],
+    [/目的外使用|目的外|秘密|非常通信/, "無線局は免許された目的・通信事項・相手方の範囲で運用するのが原則です。非常通信や遭難通信など、例外的に目的外使用が認められる場合と区別します。"],
+    [/免許の取消|運用停止|無線局の停止/, "無線局免許人への監督処分では、免許取消し、運用停止、周波数・電力の制限などがあります。違反の内容と処分対象を混同しないことが重要です。"],
+    [/識別|呼出符号|局の識別/, "局の識別では、送信中に自局を明らかにするための呼出符号や識別信号を正しく送る必要があります。送信の始め、終わり、一定間隔での識別が論点になります。"],
+  ];
+  const found = rules.find(([pattern]) => pattern.test(clean));
+  return found ? found[1] : "";
+}
+
+function houkiExplanation(question, sourceText) {
+  const topic = problemTopic(sourceText);
+  const rules = citedRules(sourceText);
+  const ruleText = rules.length ? rules.join("、") : "";
+  const point = houkiRulePoint(topic) || houkiRulePoint(sourceText);
+  if (!topic || !point) return null;
+
+  if (question.kind === "A") {
+    const choice = correctChoiceText(sourceText, question.answer);
+    const lines = [
+      `この問題は、${topic}について、${ruleText || "関係法令"}に照らして正しい肢または誤っている肢を選ぶ問題です。`,
+      "",
+      point,
+      "",
+      `正答表の正解は ${question.answer} です。`,
+    ];
+    if (choice) {
+      lines.push(`正解肢の要旨は「${choice}」です。`, "");
+    } else {
+      lines.push("この問題は表形式または長い選択肢のため、正解肢の全文引用ではなく、問題画像の該当番号と条文の要件を照合してください。", "");
+    }
+    return [
+      ...lines,
+      "",
+      "法規問題では、似た表現でも「できる」と「しなければならない」、「総務大臣」と「免許人」、「免許」と「登録」の違いで正誤が変わります。",
+      "この問題では、問題文が引用している条文の対象、義務を負う者、手続の時期、例外条件を順に確認すると、正解肢だけが条文の要件と一致します。"
+    ].join("\n");
+  }
+
+  const correct = question.labels.map((label, index) => `${label}=${question.answers[index]}`).join("、");
+  return [
+    `このB問題は、${topic}について、${ruleText || "関係法令"}の語句や正誤を組み合わせる問題です。`,
+    "",
+    point,
+    "",
+    `正答表どおり、${correct} です。`,
+    "",
+    "B問題は、各空欄や各小問を独立に見るより、条文の文章全体の流れで確認すると安定します。",
+    "特に、主語、義務を表す語、例外条件、期限や対象範囲を入れ替えた選択肢が誤りになりやすいので、空欄の前後の文と正答の語句をつなげて読んでください。"
+  ].join("\n");
+}
+
 function kougakuCalculationExplanation(question, sourceText) {
   const text = sourceText.replace(/\s+/g, " ");
   const answerText = question.kind === "A"
@@ -398,24 +1859,33 @@ function kougakuCalculationExplanation(question, sourceText) {
 function explanation(subject, question, sourceText = "") {
   const manual = MANUAL_EXPLANATIONS[`${question.examCode}:${question.id}`];
   if (manual) return manual;
-  const calc = subject === "kougaku" ? kougakuCalculationExplanation(question, sourceText) : null;
-  if (calc) return calc;
-  const topic = problemTopic(sourceText);
-  const rules = citedRules(topic || sourceText);
-  const ruleText = rules.length ? `根拠として問題文に示されているのは、${rules.join("、")}です。` : "";
-  if (question.kind === "A") {
-    const answer = question.acceptAll ? "全員正解扱い" : question.answer;
-    const choice = correctChoiceText(sourceText, question.answer);
-    if (subject === "houki") {
-      return `この問題は「${topic}」を問う問題です。${ruleText}正答表では${question.id}の正解は${answer}です。${choice ? `正解肢${question.answer}の要旨は「${choice}」です。` : ""}復習では、正解肢の語句が条文上の要件と一致している点と、他の肢で条件・手続・主体・期間・周波数などがずれている点を確認してください。`;
-    }
-    return `この問題は「${topic}」を問う問題です。正答表では${question.id}の正解は${answer}です。${choice ? `正解肢${question.answer}の要旨は「${choice}」です。` : ""}復習では、問題文の条件、図表、単位、式の関係を順に整理し、正解肢に至る公式や定義と他の肢でずれる箇所を確認してください。`;
-  }
-  const correct = question.labels.map((label, index) => `${label}=${question.answers[index]}`).join("、");
   if (subject === "houki") {
-    return `この問題は「${topic}」を問うB問題です。${ruleText}正答表では${question.id}の正解は${correct}です。アからオまでを個別に、問題文の条文・定義・表のどの欄に対応しているか確認してください。`;
+    const law = houkiExplanation(question, sourceText);
+    if (law) return law;
   }
-  return `この問題は「${topic}」を問うB問題です。正答表では${question.id}の正解は${correct}です。アからオまでを個別に、図表・式・定義との対応を確認し、数値問題では単位と係数を分けて見直してください。`;
+  const topic = problemTopic(sourceText);
+  const correct = question.kind === "A"
+    ? (question.acceptAll ? "全員正解扱い" : String(question.answer))
+    : question.labels.map((label, index) => `${label}=${question.answers[index]}`).join("、");
+  EXPLANATION_GAPS.push({
+    subject,
+    examCode: question.examCode,
+    questionId: question.id,
+    kind: question.kind,
+    correct,
+    topic,
+    sourceText: trimSentence(sourceText, 240),
+  });
+  if (!ALLOW_MISSING_EXPLANATIONS) return null;
+  return [
+    "解説未対応です。",
+    "",
+    "この表示は汎用解説ではありません。未対応を隠さないための明示的なプレースホルダーです。",
+    `対象: ${question.examCode} ${question.id}`,
+    `正答表: ${correct}`,
+    "",
+    "この問題には、問題固有の丁寧な解説を追加する必要があります。"
+  ].join("\n");
 }
 
 function questionsFor(exam, answers, images, texts) {
@@ -442,7 +1912,6 @@ function questionsFor(exam, answers, images, texts) {
   });
   for (const question of questions) {
     if (!question.blockImage) throw new Error(`${exam.code} ${question.id}: block image missing`);
-    if (!question.explanation) throw new Error(`${exam.code} ${question.id}: explanation missing`);
   }
   return questions;
 }
@@ -456,7 +1925,7 @@ function htmlFor(exam, questions) {
 <title>一アマ ${exam.label} ${exam.title}</title>
 <style>
 :root{--bg:#0b1020;--panel:#111827;--panel2:#182235;--line:#2b3a5c;--text:#e5edf8;--muted:#9aa8bd;--accent:#38bdf8;--ok:#22c55e;--bad:#ef4444}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP","Segoe UI",sans-serif}header{position:sticky;top:0;background:rgba(11,16,32,.96);border-bottom:1px solid var(--line);z-index:2}.top{max-width:1600px;margin:0 auto;padding:12px 20px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}h1{font-size:18px;margin:0}.nav{display:flex;gap:8px;flex-wrap:wrap}button,a{border:1px solid var(--line);background:#172033;color:var(--text);border-radius:8px;padding:10px 14px;font-weight:700;text-decoration:none}.danger{background:#3b1111}.active,.chip.current{border-color:var(--accent);background:#075985}.wrap{max-width:1600px;margin:0 auto;padding:18px 20px}.summary{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:14px 18px;margin-bottom:16px}.summary strong{font-size:18px}.muted{color:var(--muted)}.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.chip{width:58px}.chip.done{border-color:var(--ok)}.chip.wrong{border-color:var(--bad);background:#3b1d1d}.card{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:18px;margin-bottom:16px}.qhead{display:flex;justify-content:space-between;color:var(--muted);font-weight:700;font-size:18px}.qimg{display:block;width:100%;height:auto;background:white;border-radius:6px;margin-top:14px}.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:8px;margin-top:12px}.ans{padding:12px;font-size:16px}.ans:hover,.move:hover{border-color:var(--accent)}.ans.correct{background:#14532d;border-color:var(--ok)}.ans.selected.ok{background:#14532d;border-color:var(--ok)}.ans.selected.bad{background:#581c1c;border-color:var(--bad)}.sub{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.sub-title{font-weight:700;margin-bottom:8px}.result{padding:12px;border-radius:7px;margin-top:12px;border:1px solid var(--line);line-height:1.75}.result.ok{background:rgba(34,197,94,.12);border-color:var(--ok)}.result.bad{background:rgba(239,68,68,.12);border-color:var(--bad)}.explain{margin-top:8px;color:var(--text)}.foot-actions{display:flex;gap:8px;flex-wrap:wrap}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP","Segoe UI",sans-serif}header{position:sticky;top:0;background:rgba(11,16,32,.96);border-bottom:1px solid var(--line);z-index:2}.top{max-width:1600px;margin:0 auto;padding:12px 20px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}h1{font-size:18px;margin:0}.nav{display:flex;gap:8px;flex-wrap:wrap}button,a{border:1px solid var(--line);background:#172033;color:var(--text);border-radius:8px;padding:10px 14px;font-weight:700;text-decoration:none}.danger{background:#3b1111}.active,.chip.current{border-color:var(--accent);background:#075985}.wrap{max-width:1600px;margin:0 auto;padding:18px 20px}.summary{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:14px 18px;margin-bottom:16px}.summary strong{font-size:18px}.muted{color:var(--muted)}.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.chip{width:58px}.chip.done{border-color:var(--ok)}.chip.wrong{border-color:var(--bad);background:#3b1d1d}.card{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:18px;margin-bottom:16px}.qhead{display:flex;justify-content:space-between;color:var(--muted);font-weight:700;font-size:18px}.qimg{display:block;width:100%;height:auto;background:white;border-radius:6px;margin-top:14px}.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:8px;margin-top:12px}.ans{padding:12px;font-size:16px}.ans:hover,.move:hover{border-color:var(--accent)}.ans.correct{background:#14532d;border-color:var(--ok)}.ans.selected.ok{background:#14532d;border-color:var(--ok)}.ans.selected.bad{background:#581c1c;border-color:var(--bad)}.sub{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.sub-title{font-weight:700;margin-bottom:8px}.result{padding:12px;border-radius:7px;margin-top:12px;border:1px solid var(--line);line-height:1.75}.result.ok{background:rgba(34,197,94,.12);border-color:var(--ok)}.result.bad{background:rgba(239,68,68,.12);border-color:var(--bad)}.explain{margin-top:12px;color:var(--text);white-space:pre-wrap;line-height:1.85}.foot-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:640px){header{position:static}.wrap{padding:10px}.card{padding:12px}.chip{width:44px}.answers{grid-template-columns:repeat(5,1fr)}.ans{padding:10px 6px}}
 </style>
 </head>
@@ -561,6 +2030,31 @@ document.querySelectorAll('[data-progress-subject]').forEach(card=>{const s=stat
 </script>`;
 }
 
+function writeExplanationGapReport() {
+  const bySubject = EXPLANATION_GAPS.reduce((acc, gap) => {
+    acc[gap.subject] = (acc[gap.subject] || 0) + 1;
+    return acc;
+  }, {});
+  fs.writeFileSync(
+    path.join(ROOT, "explanation_gaps.json"),
+    `${JSON.stringify({ total: EXPLANATION_GAPS.length, bySubject, gaps: EXPLANATION_GAPS }, null, 2)}\n`
+  );
+  const lines = [
+    "# 解説未対応一覧",
+    "",
+    "汎用フォールバックで隠さず、問題固有の解説が未登録のものを列挙しています。",
+    "",
+    `- total: ${EXPLANATION_GAPS.length}`,
+    ...Object.entries(bySubject).map(([subject, count]) => `- ${subject}: ${count}`),
+    "",
+    "| subject | exam | question | kind | correct | topic |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...EXPLANATION_GAPS.map((gap) => `| ${gap.subject} | ${gap.examCode} | ${gap.questionId} | ${gap.kind} | ${String(gap.correct).replace(/\|/g, "/")} | ${gap.topic.replace(/\|/g, "/")} |`),
+    "",
+  ];
+  fs.writeFileSync(path.join(ROOT, "explanation_gaps.md"), `${lines.join("\n")}\n`);
+}
+
 function main() {
   cleanDir(TMP);
   const houki = examsFor("houki");
@@ -571,9 +2065,19 @@ function main() {
     }
     const answers = parseAnswers(exam);
     const blocks = blockImages(exam);
+    const beforeGaps = EXPLANATION_GAPS.length;
     const questions = questionsFor(exam, answers, blocks.images, blocks.texts);
-    fs.writeFileSync(path.join(ROOT, exam.out), htmlFor(exam, questions));
-    console.log(`${exam.out}: ${questions.length} questions`);
+    const examGapCount = EXPLANATION_GAPS.length - beforeGaps;
+    if (examGapCount && !ALLOW_MISSING_EXPLANATIONS) {
+      console.log(`${exam.out}: ${questions.length} questions, explanation gaps ${examGapCount}; skipped html write`);
+    } else {
+      fs.writeFileSync(path.join(ROOT, exam.out), htmlFor(exam, questions));
+      console.log(`${exam.out}: ${questions.length} questions`);
+    }
+  }
+  writeExplanationGapReport();
+  if (EXPLANATION_GAPS.length && !ALLOW_MISSING_EXPLANATIONS) {
+    throw new Error(`explanation gaps remain: ${EXPLANATION_GAPS.length}. See explanation_gaps.md`);
   }
   fs.writeFileSync(path.join(ROOT, "index.html"), indexHtml(houki, kougaku));
   fs.writeFileSync(path.join(ROOT, "houki.html"), houkiMenuHtml(houki));
